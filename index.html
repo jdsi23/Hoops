@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>8-bit Arcade Basketball</title>
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: monospace;
+    color: #fff;
+  }
+  canvas {
+    image-rendering: pixelated;
+    background: #003300;
+    border: 4px solid #fff;
+  }
+  #score {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 5px #0f0;
+  }
+</style>
+</head>
+<body>
+<div id="score">Score: 0</div>
+<canvas id="game" width="320" height="240"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreDisplay = document.getElementById('score');
+
+  // Scale up canvas for pixelated look
+  const SCALE = 2;
+  canvas.style.width = canvas.width * SCALE + 'px';
+  canvas.style.height = canvas.height * SCALE + 'px';
+
+  // Game objects
+  const basket = {
+    x: canvas.width / 2 - 16,
+    y: 20,
+    width: 32,
+    height: 16,
+    color: '#fff',
+  };
+
+  const player = {
+    x: canvas.width / 2 - 8,
+    y: canvas.height - 32,
+    width: 16,
+    height: 24,
+    speed: 3,
+    color: '#f00',
+  };
+
+  const ball = {
+    x: player.x + 8,
+    y: player.y - 8,
+    size: 8,
+    color: '#ff0',
+    isMoving: false,
+    velocityX: 0,
+    velocityY: 0,
+  };
+
+  let score = 0;
+
+  // Controls
+  const keys = {
+    left: false,
+    right: false,
+    space: false,
+  };
+
+  // Event listeners
+  window.addEventListener('keydown', e => {
+    if (e.code === 'ArrowLeft') keys.left = true;
+    if (e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'Space') keys.space = true;
+  });
+
+  window.addEventListener('keyup', e => {
+    if (e.code === 'ArrowLeft') keys.left = false;
+    if (e.code === 'ArrowRight') keys.right = false;
+    if (e.code === 'Space') keys.space = false;
+  });
+
+  // Draw pixelated rectangle (for blocky 8-bit style)
+  function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  // Draw ball as pixel circle
+  function drawBall(x, y, size, color) {
+    ctx.fillStyle = color;
+    // simple 8-bit style circle with pixels
+    ctx.fillRect(x, y, size, size);
+    ctx.fillRect(x+1, y-1, size-2, 1);
+    ctx.fillRect(x+1, y+size, size-2, 1);
+    ctx.fillRect(x-1, y+1, 1, size-2);
+    ctx.fillRect(x+size, y+1, 1, size-2);
+  }
+
+  // Check collision ball and basket
+  function checkScore() {
+    // Simple bounding box collision
+    if (
+      ball.x + ball.size > basket.x &&
+      ball.x < basket.x + basket.width &&
+      ball.y < basket.y + basket.height &&
+      ball.y + ball.size > basket.y
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  // Reset ball position after score or miss
+  function resetBall() {
+    ball.isMoving = false;
+    ball.x = player.x + player.width / 2 - ball.size / 2;
+    ball.y = player.y - ball.size;
+    ball.velocityX = 0;
+    ball.velocityY = 0;
+  }
+
+  function update() {
+    // Move player
+    if (keys.left) {
+      player.x -= player.speed;
+      if (!ball.isMoving) ball.x = player.x + player.width / 2 - ball.size / 2;
+    }
+    if (keys.right) {
+      player.x += player.speed;
+      if (!ball.isMoving) ball.x = player.x + player.width / 2 - ball.size / 2;
+    }
+
+    // Keep player inside canvas
+    player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+
+    // Shoot ball
+    if (keys.space && !ball.isMoving) {
+      ball.isMoving = true;
+      ball.velocityX = (Math.random() * 2 - 1) * 1.5; // slight horizontal randomness
+      ball.velocityY = -5; // upward speed
+    }
+
+    // Move ball if shot
+    if (ball.isMoving) {
+      ball.x += ball.velocityX;
+      ball.y += ball.velocityY;
+      ball.velocityY += 0.15; // gravity effect
+
+      // Bounce off sides
+      if (ball.x < 0) {
+        ball.x = 0;
+        ball.velocityX = -ball.velocityX * 0.6;
+      }
+      if (ball.x + ball.size > canvas.width) {
+        ball.x = canvas.width - ball.size;
+        ball.velocityX = -ball.velocityX * 0.6;
+      }
+
+      // Check if scored
+      if (checkScore()) {
+        score++;
+        scoreDisplay.textContent = 'Score: ' + score;
+        resetBall();
+      }
+
+      // If ball falls below player (miss)
+      if (ball.y > canvas.height) {
+        resetBall();
+      }
+    }
+  }
+
+  function draw() {
+    // Clear screen
+    ctx.fillStyle = '#003300';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw basket (pixelated hoop with backboard)
+    // Backboard
+    drawRect(basket.x - 8, basket.y - 12, basket.width + 16, 4, '#663300');
+    // Hoop ring
+    drawRect(basket.x, basket.y + basket.height - 4, basket.width, 4, '#ff6600');
+
+    // Draw player (blocky)
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+    // Player head (pixel square)
+    drawRect(player.x + 4, player.y - 8, 8, 8, '#f88');
+
+    // Draw ball
+    drawBall(ball.x, ball.y, ball.size, ball.color);
+  }
+
+  function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Start game
+  resetBall();
+  gameLoop();
+})();
+</script>
+</body>
+</html>
