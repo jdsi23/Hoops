@@ -22,6 +22,7 @@ docker run -p 8080:8080 hoops
 
 The image can be pushed to a container registry and deployed to AWS ECS using Fargate.
 
+
 ## One-step deployment
 
 Run the provided `run` script to build the image, push it to ECR and apply the
@@ -34,6 +35,7 @@ chmod +x run
 
 `AWS_REGION`, `TAG` and `ECR_REPO` can be overridden as environment variables
 before running the script.
+
 
 ## Deployment with Terraform
 
