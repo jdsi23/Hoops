@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>8-bit Arcade Basketball - Bounce & Moving Hoop</title>
+<title>8-bit Street Hoops</title>
 <style>
   body {
     margin: 0;
@@ -30,12 +30,22 @@
     text-shadow: 0 0 5px #0f0;
     user-select: none;
   }
+  #info {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-shadow: 0 0 5px #0f0;
+    user-select: none;
+  }
 </style>
 </head>
 <body>
-<div id="score">Score: 0</div>
+<div id="score">You: 0 | CPU: 0</div>
+<div id="info">Arrows: move | Space: shoot | D: dunk</div>
 <canvas id="game" width="320" height="240"></canvas>
-
 <script>
 (() => {
   const canvas = document.getElementById('game');
@@ -47,66 +57,48 @@
   canvas.style.height = canvas.height * SCALE + 'px';
 
   // Game objects
-  const basket = {
-    x: 0,
-    y: 20,
-    width: 32,
-    height: 16,
-    color: '#fff',
-    speed: 1.5,
-    direction: 1, // 1 = right, -1 = left
-  };
+  const hoop = { x: canvas.width - 40, y: 60, width: 32, height: 16 };
 
-  const player = {
-    x: canvas.width / 2 - 8,
-    y: canvas.height - 32,
-    width: 16,
-    height: 24,
-    speed: 3,
-    color: '#f00',
-  };
+  const player = { x: 20, y: canvas.height - 40, width: 16, height: 24, speed: 2, color: '#f00' };
+  const opponent = { x: canvas.width / 2, y: canvas.height - 40, width: 16, height: 24, speed: 1.6, color: '#0ff' };
 
   const ball = {
-    x: player.x + player.width / 2 - 4,
+    x: player.x + 4,
     y: player.y - 8,
     size: 8,
     color: '#ff0',
     isMoving: false,
     velocityX: 0,
     velocityY: 0,
-    onPlayer: true,
+    owner: player
   };
 
-  let score = 0;
+  let score = { player: 0, cpu: 0 };
 
-  // Controls
-  const keys = {
-    left: false,
-    right: false,
-    space: false,
-  };
-
+  const keys = { left: false, right: false, up: false, down: false, space: false, dunk: false };
   window.addEventListener('keydown', e => {
     if (e.code === 'ArrowLeft') keys.left = true;
     if (e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'ArrowUp') keys.up = true;
+    if (e.code === 'ArrowDown') keys.down = true;
     if (e.code === 'Space') keys.space = true;
+    if (e.code === 'KeyD') keys.dunk = true;
   });
-
   window.addEventListener('keyup', e => {
     if (e.code === 'ArrowLeft') keys.left = false;
     if (e.code === 'ArrowRight') keys.right = false;
+    if (e.code === 'ArrowUp') keys.up = false;
+    if (e.code === 'ArrowDown') keys.down = false;
     if (e.code === 'Space') keys.space = false;
+    if (e.code === 'KeyD') keys.dunk = false;
   });
 
-  // Draw helpers
   function drawRect(x, y, w, h, color) {
     ctx.fillStyle = color;
     ctx.fillRect(x, y, w, h);
   }
-
   function drawBall(x, y, size, color) {
     ctx.fillStyle = color;
-    // pixelated "circle"
     ctx.fillRect(x, y, size, size);
     ctx.fillRect(x + 1, y - 1, size - 2, 1);
     ctx.fillRect(x + 1, y + size, size - 2, 1);
@@ -114,137 +106,139 @@
     ctx.fillRect(x + size, y + 1, 1, size - 2);
   }
 
-  function checkScore() {
-    // ball collides with basket's hoop area (bottom 4 pixels of basket rect)
-    if (
-      ball.x + ball.size > basket.x &&
-      ball.x < basket.x + basket.width &&
-      ball.y + ball.size > basket.y + basket.height - 4 &&
-      ball.y + ball.size < basket.y + basket.height + 4 // slight leniency
-    ) {
-      return true;
-    }
-    return false;
-  }
-
-  function resetBallToPlayer() {
+  function resetBall(newOwner) {
     ball.isMoving = false;
-    ball.onPlayer = true;
+    ball.owner = newOwner;
     ball.velocityX = 0;
     ball.velocityY = 0;
-    ball.x = player.x + player.width / 2 - ball.size / 2;
-    ball.y = player.y - ball.size;
+    ball.x = newOwner.x + 4;
+    ball.y = newOwner.y - 8;
+  }
+
+  function checkHoop() {
+    return (
+      ball.x + ball.size > hoop.x &&
+      ball.x < hoop.x + hoop.width &&
+      ball.y + ball.size > hoop.y &&
+      ball.y < hoop.y + hoop.height
+    );
+  }
+
+  function attemptShot(shooter) {
+    ball.isMoving = true;
+    ball.owner = null;
+    const dir = shooter === player ? 1 : -1;
+    ball.velocityX = 3 * dir;
+    ball.velocityY = -6;
+  }
+
+  function attemptDunk() {
+    if (ball.owner === player && Math.abs(player.x - hoop.x) < 20 && player.y < hoop.y + 40) {
+      ball.isMoving = true;
+      ball.owner = null;
+      ball.x = hoop.x + hoop.width / 2 - ball.size / 2;
+      ball.y = hoop.y;
+      ball.velocityX = 0;
+      ball.velocityY = 4;
+    }
+  }
+
+  function updatePlayer(p) {
+    if (p === player) {
+      if (keys.left) p.x -= p.speed;
+      if (keys.right) p.x += p.speed;
+      if (keys.up) p.y -= p.speed;
+      if (keys.down) p.y += p.speed;
+    } else {
+      if (ball.owner === player) {
+        if (p.x > player.x) p.x -= p.speed;
+        else if (p.x < player.x) p.x += p.speed;
+      }
+      if (p.y > player.y) p.y -= p.speed;
+      else if (p.y < player.y) p.y += p.speed;
+    }
+    if (p.x < 0) p.x = 0;
+    if (p.x + p.width > canvas.width) p.x = canvas.width - p.width;
+    if (p.y < 0) p.y = 0;
+    if (p.y + p.height > canvas.height) p.y = canvas.height - p.height;
+
+    if (ball.owner === p) {
+      ball.x = p.x + 4;
+      ball.y = p.y - 8;
+    }
+  }
+
+  function updateBall() {
+    if (!ball.isMoving) return;
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+    ball.velocityY += 0.2;
+
+    if (ball.y + ball.size > canvas.height) {
+      ball.y = canvas.height - ball.size;
+      ball.velocityY *= -0.4;
+      ball.velocityX *= 0.7;
+    }
+    if (ball.x < 0 || ball.x + ball.size > canvas.width) {
+      ball.velocityX *= -0.6;
+      if (ball.x < 0) ball.x = 0;
+      if (ball.x + ball.size > canvas.width) ball.x = canvas.width - ball.size;
+    }
+
+    if (checkHoop() && ball.velocityY > 0) {
+      score.player += 2;
+      updateScore();
+      resetBall(opponent);
+    }
+
+    const dist = Math.hypot(ball.x - opponent.x, ball.y - opponent.y);
+    if (dist < 20 && Math.random() < 0.05) {
+      resetBall(opponent);
+    }
+  }
+
+  function updateScore() {
+    scoreDisplay.textContent = `You: ${score.player} | CPU: ${score.cpu}`;
   }
 
   function update() {
-    // Hoop moves left-right
-    basket.x += basket.speed * basket.direction;
-    if (basket.x <= 0) basket.direction = 1;
-    if (basket.x + basket.width >= canvas.width) basket.direction = -1;
+    updatePlayer(player);
+    updatePlayer(opponent);
 
-    // Player movement
-    if (keys.left) {
-      player.x -= player.speed;
-      if (player.x < 0) player.x = 0;
-      if (ball.onPlayer) ball.x = player.x + player.width / 2 - ball.size / 2;
+    if (keys.space && ball.owner === player) {
+      attemptShot(player);
     }
-    if (keys.right) {
-      player.x += player.speed;
-      if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
-      if (ball.onPlayer) ball.x = player.x + player.width / 2 - ball.size / 2;
+    if (keys.dunk) {
+      attemptDunk();
     }
 
-    // Shoot ball
-    if (keys.space && ball.onPlayer) {
-      ball.isMoving = true;
-      ball.onPlayer = false;
-      ball.velocityX = (Math.random() * 2 - 1) * 3; // more horizontal power range
-      ball.velocityY = -8; // initial upward force
-    }
-
-    // Ball movement & bounce
-    if (ball.isMoving) {
-      ball.x += ball.velocityX;
-      ball.y += ball.velocityY;
-
-      // Gravity
-      ball.velocityY += 0.19;
-
-      // Bounce on floor
-      if (ball.y + ball.size > canvas.height) {
-        ball.y = canvas.height - ball.size;
-        ball.velocityY = -ball.velocityY * 0.3; // lose some energy on bounce
-
-        // Dampen horizontal speed slightly on bounce
-        ball.velocityX *= 0.8;
-      }
-
-      // Bounce on ceiling
-      if (ball.y < 0) {
-        ball.y = 0;
-        ball.velocityY = -ball.velocityY * 0.7;
-      }
-
-      // Bounce on left wall
-      if (ball.x < 0) {
-        ball.x = 0;
-        ball.velocityX = -ball.velocityX * 0.7;
-      }
-
-      // Bounce on right wall
-      if (ball.x + ball.size > canvas.width) {
-        ball.x = canvas.width - ball.size;
-        ball.velocityX = -ball.velocityX * 0.7;
-      }
-
-      // Friction slows horizontal velocity slowly
-      ball.velocityX *= 0.99;
-
-      // Check if ball has slowed enough and near player to regain control
-      const distToPlayer = Math.abs((ball.x + ball.size / 2) - (player.x + player.width / 2));
-      if (
-        ball.y + ball.size >= player.y &&
-        distToPlayer < 20 &&
-        Math.abs(ball.velocityX) < 0.5 &&
-        Math.abs(ball.velocityY) < 1
-      ) {
-        resetBallToPlayer();
-      }
-
-      // Check for score
-      if (checkScore()) {
-        score++;
-        scoreDisplay.textContent = 'Score: ' + score;
-        resetBallToPlayer();
-      }
-    }
+    updateBall();
   }
 
   function draw() {
-    // Clear screen
     ctx.fillStyle = '#003300';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw hoop (backboard + moving hoop ring)
-    drawRect(basket.x - 8, basket.y - 12, basket.width + 16, 4, '#663300'); // backboard
-    drawRect(basket.x, basket.y + basket.height - 4, basket.width, 4, '#ff6600'); // hoop ring
+    drawRect(hoop.x - 8, hoop.y - 12, hoop.width + 16, 4, '#663300');
+    drawRect(hoop.x, hoop.y + hoop.height - 4, hoop.width, 4, '#ff6600');
 
-    // Draw player (blocky)
     drawRect(player.x, player.y, player.width, player.height, player.color);
-    drawRect(player.x + 4, player.y - 8, 8, 8, '#f88'); // head
+    drawRect(player.x + 4, player.y - 8, 8, 8, '#f88');
 
-    // Draw ball
+    drawRect(opponent.x, opponent.y, opponent.width, opponent.height, opponent.color);
+    drawRect(opponent.x + 4, opponent.y - 8, 8, 8, '#8ff');
+
     drawBall(ball.x, ball.y, ball.size, ball.color);
   }
 
-  function gameLoop() {
+  function loop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(loop);
   }
 
-  resetBallToPlayer();
-  gameLoop();
+  updateScore();
+  loop();
 })();
 </script>
 </body>
