@@ -36,6 +36,10 @@ chmod +x run
 `AWS_REGION`, `TAG` and `ECR_REPO` can be overridden as environment variables
 before running the script.
 
+The script will create the ECR repository if needed and import it into
+Terraform state so subsequent runs don't fail when the repository already
+exists.
+
 
 ## Deployment with Terraform
 
