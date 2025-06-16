@@ -22,6 +22,19 @@ docker run -p 8080:8080 hoops
 
 The image can be pushed to a container registry and deployed to AWS ECS using Fargate.
 
+## One-step deployment
+
+Run the provided `run` script to build the image, push it to ECR and apply the
+Terraform configuration:
+
+```bash
+chmod +x run
+./run
+```
+
+`AWS_REGION`, `TAG` and `ECR_REPO` can be overridden as environment variables
+before running the script.
+
 ## Deployment with Terraform
 
 Terraform scripts in the `terraform` directory provision an ECR repository, ECS cluster, task definition and service using AWS Fargate. Set the `container_image` variable to the image URI you pushed to ECR, then run:
